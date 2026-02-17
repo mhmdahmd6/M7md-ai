@@ -73,7 +73,7 @@ const M7mdAIInterface = () => {
       // المسار الثاني: هندسة برومبت نصي (Prompt Engineering)
       // ---------------------------------------------------------
       else {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
         const prompt = `
           Role: Expert AI Art Prompt Engineer.
           Target Model: Midjourney v6.
@@ -151,7 +151,7 @@ const M7mdAIInterface = () => {
                       {isImgMode ? 'أدخل وصف الصورة (Prompt)' : 'أدخل فكرة البرومبت'}
                     </span>
                     <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] text-gray-400 font-mono border border-white/5">
-                       Model: {isImgMode ? 'Flux Gen v1' : 'Gemini 1.5 Pro'}
+                       Model: {isImgMode ? 'M7MD AI v1' : 'M7MD AI V2.5'}
                     </span>
                  </div>
                 <textarea 
@@ -241,7 +241,7 @@ const M7mdAIInterface = () => {
             </button>
 
             <div className="text-center opacity-30 mt-4">
-               <p className="text-[9px] font-mono">M7MD AI • POWERED BY GEMINI & FLUX</p>
+               <p className="text-[9px] font-mono">M7MD AI • POWERED BY 2026</p>
             </div>
           </div>
         </div>
