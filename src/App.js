@@ -3,9 +3,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   Sparkles, Monitor, Smartphone, Square, Layout, Plus, 
   Wand2, Image as ImageIcon, Cpu, Loader2,
-  X, Copy, Download, Palette
+  X, Copy, Download, Palette, Zap
 } from 'lucide-react';
 
+// --- إعداد Gemini ---
 const API_KEY = process.env.REACT_APP_GEMINI_KEY; 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -21,7 +22,7 @@ const M7mdAIInterface = () => {
   const [isError, setIsError] = useState(false); 
   const fileInputRef = useRef(null);
 
-  // تحويل الصورة لـ Base64 لـ Gemini
+  // تحويل الصور لـ Base64
   async function fileToGenerativePart(file) {
     const base64EncodedDataPromise = new Promise((resolve) => {
       const reader = new FileReader();
@@ -46,9 +47,10 @@ const M7mdAIInterface = () => {
 
   const removeFile = (id) => setFiles(prev => prev.filter(item => item.id !== id));
 
+  // --- الدالة الأساسية للتوليد ---
   const handleGenerate = async () => {
     if (!userInput && files.length === 0) {
-      alert("أدخل وصفاً أو ارفع صورة للبدء!");
+      alert("يا بطل، أضف وصفاً أو صورة أولاً!");
       return;
     }
 
@@ -57,32 +59,51 @@ const M7mdAIInterface = () => {
     setIsError(false);
     
     try {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
       if (activeTool === 'image') {
-        // --- محرك توليد الصور (Flux) ---
-        let width = 1024; let height = 1024;
+        // 1. تحضير الوصف النهائي (إذا كان هناك صور، نطلب من Gemini وصفها)
+        let finalPrompt = userInput;
+        
+        if (files.length > 0) {
+          const imageParts = await Promise.all(files.map(f => fileToGenerativePart(f.rawFile)));
+          const visionResult = await model.generateContent([
+            "Describe this image in detail for an AI image generator, merging it with this user request: " + userInput + ". Provide only the English descriptive prompt.",
+            ...imageParts
+          ]);
+          finalPrompt = visionResult.response.text();
+        }
+
+        // 2. تحديد الأبعاد بناءً على الاختيار
+        let width = 1024, height = 1024;
         if (selectedRatio === '16:9') { width = 1280; height = 720; }
         if (selectedRatio === '9:16') { width = 720; height = 1280; }
-        if (selectedRatio === '4:5')  { width = 800; height = 1000; }
+        if (selectedRatio === '4:5')  { width = 1080; height = 1350; }
 
-        const seed = Math.floor(Math.random() * 999999);
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userInput)}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`;
+        // 3. إنشاء رابط الصورة (استخدام Pollinations مع Flux)
+        const seed = Math.floor(Math.random() * 9999999);
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`;
         
+        // التحقق من تحميل الصورة
         const img = new Image();
         img.src = imageUrl;
-        await new Promise((resolve) => { img.onload = resolve; });
-        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+
         setGeneratedImageUrl(imageUrl);
         setShowResult(true);
+
       } else {
-        // --- محرك هندسة البرومبت (Gemini 2.5 Flash) ---
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        // --- هندسة البرومبت النصي ---
         let promptParts = [
-          `Role: Master Prompt Engineer. Create a Midjourney v6 prompt for: "${userInput}". Aspect Ratio: ${selectedRatio}. Output only the prompt.`
+          `Role: Master Prompt Engineer for Midjourney. Create a cinematic v6 prompt for: "${userInput}". Aspect Ratio: ${selectedRatio}. Output only the prompt.`
         ];
 
         if (files.length > 0) {
           const imageParts = await Promise.all(files.map(f => fileToGenerativePart(f.rawFile)));
-          promptParts = ["Analyze this image and create a professional prompt to recreate it:", ...imageParts, ...promptParts];
+          promptParts = ["Analyze these reference images and write a professional prompt to recreate their style/content:", ...imageParts, ...promptParts];
         }
 
         const result = await model.generateContent(promptParts);
@@ -90,8 +111,9 @@ const M7mdAIInterface = () => {
         setShowResult(true);
       }
     } catch (error) {
+      console.error(error);
       setIsError(true);
-      setResultContent("Quota Full: يرجى الانتظار دقيقة أو تغيير الموديل.");
+      setResultContent("حدث ضغط على النظام، حاول مرة أخرى بعد قليل.");
       setShowResult(true);
     } finally {
       setIsLoading(false);
@@ -99,99 +121,118 @@ const M7mdAIInterface = () => {
   };
 
   const ratios = [
-    { id: '9:16', icon: <Smartphone size={16} /> },
-    { id: '16:9', icon: <Monitor size={16} /> },
-    { id: '1:1', icon: <Square size={16} /> },
-    { id: '4:5', icon: <Layout size={16} /> },
+    { id: '1:1', label: 'مربع', icon: <Square size={14} /> },
+    { id: '16:9', label: 'سينمائي', icon: <Monitor size={14} /> },
+    { id: '9:16', label: 'ستوري', icon: <Smartphone size={14} /> },
+    { id: '4:5', label: 'بوست', icon: <Layout size={14} /> },
   ];
 
-  const isImgMode = activeTool === 'image';
-
   return (
-    <div className="min-h-screen bg-[#020617] text-white font-sans pb-20" dir="rtl">
-      <nav className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#020617] text-white font-sans pb-10" dir="rtl">
+      {/* Header */}
+      <nav className="sticky top-0 z-50 bg-[#020617]/80 backdrop-blur-md border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`${isImgMode ? 'bg-blue-600' : 'bg-purple-600'} p-2 rounded-xl transition-colors`}>
-            <Cpu size={24} />
+          <div className={`p-2 rounded-xl bg-gradient-to-br ${activeTool === 'image' ? 'from-blue-600 to-cyan-500' : 'from-purple-600 to-pink-500'}`}>
+            <Cpu size={22} />
           </div>
-          <span className="text-xl font-black italic uppercase">M7MD AI</span>
+          <span className="text-xl font-black italic tracking-tighter">M7MD AI <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full not-italic">V5</span></span>
         </div>
-        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-          <button onClick={() => setActiveTool('image')} className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${isImgMode ? 'bg-blue-600' : 'text-gray-400'}`}>
-            <ImageIcon size={16} /> توليد صور
+
+        <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5">
+          <button onClick={() => {setActiveTool('image'); setShowResult(false);}} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${activeTool === 'image' ? 'bg-blue-600' : 'text-gray-400'}`}>
+            <ImageIcon size={14} /> توليد الصور
           </button>
-          <button onClick={() => setActiveTool('prompt')} className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${!isImgMode ? 'bg-purple-600' : 'text-gray-400'}`}>
-            <Wand2 size={16} /> هندسة برومبت
+          <button onClick={() => {setActiveTool('prompt'); setShowResult(false);}} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${activeTool === 'prompt' ? 'bg-purple-600' : 'text-gray-400'}`}>
+            <Wand2 size={14} /> هندسة برومبت
           </button>
         </div>
       </nav>
 
       <main className="max-w-6xl mx-auto p-4 md:p-10">
         <div className="flex flex-col lg:flex-row gap-8">
-          <div className="w-full lg:flex-[2] space-y-6">
-            <div className={`bg-[#0f172a]/80 p-1 rounded-[2rem] border transition-all ${isImgMode ? 'border-blue-500' : 'border-purple-500'} shadow-2xl`}>
-              <div className="bg-[#0f172a] rounded-[1.9rem] p-6 text-right">
-                <textarea 
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  placeholder={isImgMode ? "صف الصورة التي تريد توليدها..." : "اكتب فكرتك أو ارفع صورة لتحويلها لبرومبت..."}
-                  className="w-full h-40 bg-transparent text-white text-lg focus:outline-none resize-none text-right font-medium"
-                />
-                
-                {/* قسم رفع الصور - يظهر فقط في وضع البرومبت أو التحليل */}
-                {!isImgMode && (
-                  <div className="mt-4 flex flex-wrap gap-2 border-t border-white/5 pt-4">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
-                    {files.map(f => (
-                      <div key={f.id} className="relative w-16 h-16 group">
-                        <img src={f.preview} className="w-full h-full object-cover rounded-lg" alt="preview" />
-                        <button onClick={() => removeFile(f.id)} className="absolute -top-1 -left-1 bg-red-600 rounded-full p-0.5"><X size={10}/></button>
-                      </div>
-                    ))}
-                    <button onClick={() => fileInputRef.current.click()} className="w-16 h-16 border-2 border-dashed border-white/10 rounded-lg flex items-center justify-center hover:bg-white/5"><Plus /></button>
+          
+          {/* Left Side: Input & Result */}
+          <div className="w-full lg:flex-[2.5] space-y-6">
+            <div className={`bg-[#0f172a]/80 p-6 rounded-[2.5rem] border-2 transition-all ${activeTool === 'image' ? 'border-blue-500/20' : 'border-purple-500/20'}`}>
+              <textarea 
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                placeholder={activeTool === 'image' ? "أوصف الصورة الخرافية اللي في خيالك..." : "اكتب فكرتك وسأحولها لبرومبت احترافي..."}
+                className="w-full h-32 bg-transparent text-white text-lg focus:outline-none resize-none text-right placeholder:text-gray-600"
+              />
+              
+              {/* Image Upload Area (Visible for both now) */}
+              <div className="mt-4 flex flex-wrap gap-3 border-t border-white/5 pt-5">
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
+                {files.map(f => (
+                  <div key={f.id} className="relative w-20 h-20 group">
+                    <img src={f.preview} className="w-full h-full object-cover rounded-2xl border border-white/10" alt="preview" />
+                    <button onClick={() => removeFile(f.id)} className="absolute -top-2 -left-2 bg-red-500 rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-all"><X size={12}/></button>
                   </div>
-                )}
+                ))}
+                <button onClick={() => fileInputRef.current.click()} className="w-20 h-20 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center hover:bg-white/5 transition-all text-gray-500">
+                  <Plus size={24} />
+                  <span className="text-[9px] mt-1 font-bold">إضافة مرجع</span>
+                </button>
               </div>
             </div>
 
+            {/* Result Area */}
             {showResult && (
-              <div className="rounded-[2rem] overflow-hidden border border-white/10 animate-in fade-in slide-in-from-bottom-4">
-                <div className={`px-6 py-4 flex justify-between ${isImgMode ? 'bg-blue-900/20' : 'bg-purple-900/20'}`}>
-                  <span className="font-bold text-xs uppercase">{isImgMode ? 'Image Ready' : 'Prompt Ready'}</span>
-                  {!isError && (
-                    isImgMode ? <a href={generatedImageUrl} target="_blank" rel="noreferrer" className="text-[10px] bg-white/10 px-3 py-1 rounded-lg">تحميل</a>
-                    : <button onClick={() => navigator.clipboard.writeText(resultContent)} className="text-[10px] bg-white/10 px-3 py-1 rounded-lg">نسخ</button>
-                  )}
-                </div>
-                <div className="bg-black/40 p-6 flex justify-center min-h-[200px]">
-                  {isError ? <p className="text-red-400">{resultContent}</p> : 
-                   isImgMode ? <img src={generatedImageUrl} className="w-full rounded-xl" alt="result" /> :
-                   <p className="text-left font-mono text-sm w-full whitespace-pre-wrap">{resultContent}</p>}
-                </div>
+              <div className="animate-in fade-in slide-in-from-bottom-5 duration-500">
+                {activeTool === 'image' ? (
+                  <div className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl">
+                    <img src={generatedImageUrl} className="w-full h-auto" alt="AI Generated" />
+                    <div className="absolute top-4 left-4 flex gap-2">
+                      <a href={generatedImageUrl} target="_blank" rel="noreferrer" className="p-3 bg-black/60 backdrop-blur-md rounded-2xl hover:bg-blue-600 transition-all">
+                        <Download size={20} />
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white/5 backdrop-blur-md p-8 rounded-[2.5rem] border border-white/10 relative group">
+                    <button onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ ✅');}} className="absolute top-4 left-4 p-2 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-all">
+                      <Copy size={18} />
+                    </button>
+                    <p className="text-left font-mono text-sm leading-relaxed text-blue-200" dir="ltr">{resultContent}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <div className="w-full lg:flex-[1] space-y-4">
-            <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
-              <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">الأبعاد</label>
-              <div className="grid grid-cols-2 gap-2">
+          {/* Right Side: Controls */}
+          <div className="w-full lg:flex-[1] space-y-6">
+            <div className="bg-[#0f172a]/40 p-6 rounded-[2rem] border border-white/5">
+              <div className="flex items-center gap-2 mb-6 text-gray-400">
+                <Palette size={16} />
+                <span className="text-[11px] font-bold uppercase tracking-tighter">تنسيق المقاس</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 {ratios.map(r => (
-                  <button key={r.id} onClick={() => setSelectedRatio(r.id)} className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${selectedRatio === r.id ? 'border-white bg-white/10' : 'border-white/5 text-gray-400'}`}>
-                    {r.icon} <span className="text-[10px] font-bold">{r.id}</span>
+                  <button key={r.id} onClick={() => setSelectedRatio(r.id)} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${selectedRatio === r.id ? 'border-blue-500 bg-blue-500/10' : 'border-white/5 bg-black/20 hover:border-white/20'}`}>
+                    {r.icon}
+                    <span className="text-[10px] font-bold">{r.label}</span>
+                    <span className="text-[9px] opacity-40 font-mono">{r.id}</span>
                   </button>
                 ))}
               </div>
             </div>
+
             <button 
               disabled={isLoading}
               onClick={handleGenerate}
-              className={`w-full py-5 rounded-2xl font-black text-white flex items-center justify-center gap-3 transition-all ${isLoading ? 'opacity-40' : 'hover:scale-[1.02]'} ${isImgMode ? 'bg-blue-600 shadow-blue-500/20' : 'bg-purple-600 shadow-purple-500/20'} shadow-2xl`}
+              className={`w-full py-6 rounded-[2rem] font-black text-white flex items-center justify-center gap-3 transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95'} shadow-2xl ${activeTool === 'image' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 shadow-blue-500/20' : 'bg-gradient-to-r from-purple-600 to-pink-600 shadow-purple-500/20'}`}
             >
-              {isLoading ? <Loader2 className="animate-spin" /> : <Sparkles size={22} />}
-              <span className="uppercase tracking-widest">{isLoading ? 'جاري العمل...' : isImgMode ? 'توليد الصورة' : 'هندسة البرومبت'}</span>
+              {isLoading ? <Loader2 className="animate-spin" size={24} /> : <Zap size={24} fill="white" />}
+              <span className="uppercase tracking-widest text-sm">
+                {isLoading ? 'جاري السحر...' : activeTool === 'image' ? 'توليد اللوحة' : 'صناعة البرومبت'}
+              </span>
             </button>
-            <div className="text-center opacity-30 text-[9px] font-mono tracking-widest uppercase">M7MD AI • 2026 Edition</div>
+
+            <div className="text-center">
+               <p className="text-[10px] font-black text-white/20 tracking-[0.2em] uppercase">M7MD AI Engine v5.0</p>
+            </div>
           </div>
         </div>
       </main>
