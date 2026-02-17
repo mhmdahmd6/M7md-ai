@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   Sparkles, Monitor, Smartphone, Square, Layout, Plus, 
-  Wand2, Image as ImageIcon, Cpu, Loader2, CheckCircle2, 
-  X, Copy, AlertTriangle, RefreshCcw
+  Wand2, Image as ImageIcon, Cpu, Loader2,
+  X, Copy, RefreshCcw
 } from 'lucide-react';
 
 // --- إعداد الاتصال بـ Gemini API ---
