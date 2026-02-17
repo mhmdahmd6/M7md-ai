@@ -72,10 +72,10 @@ const M7mdAIInterface = () => {
         const visionResult = await visionModel.generateContent([visionPrompt, ...imageParts]);
         const visionAnalysis = visionResult.response.text();
 
-        setStatusMessage("جاري صياغة البرومبت النهائي عبر Gemini 3 Pro...");
+        setStatusMessage("جاري صياغة البرومبت النهائي عبر M7MD AI...");
         setProgress(70);
         
-        const proModel = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
+        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
         const proPrompt = `Convert this analysis: "${visionAnalysis}" into a high-end cinematic prompt for Midjourney. Aspect ratio: ${selectedRatio}. Language: English.`;
         const finalResult = await proModel.generateContent(proPrompt);
         finalResponse = finalResult.response.text();
@@ -83,10 +83,10 @@ const M7mdAIInterface = () => {
       
       // المسار الثاني: هندسة نصوص مباشرة (Pro Mode)
       else {
-        setStatusMessage("جاري المعالجة عبر Gemini 3 Pro...");
+        setStatusMessage("جاري المعالجة عبر M7MD AI...");
         setProgress(50);
         
-        const proModel = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
+        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
         const textPrompt = `Role: Prompt Engineer. Task: Create a detailed Midjourney prompt for: "${userInput}". Ratio: ${selectedRatio}.`;
         const result = await proModel.generateContent(textPrompt);
         finalResponse = result.response.text();
@@ -132,7 +132,7 @@ const M7mdAIInterface = () => {
             <ImageIcon size={16} /> تحليل الصور
           </button>
           <button onClick={() => setActiveTool('prompt')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTool === 'prompt' ? 'bg-indigo-600' : 'text-gray-400'}`}>
-            <Wand2 size={16} /> Gemini 3 Pro
+            <Wand2 size={16} /> بروميت 
           </button>
         </div>
       </nav>
