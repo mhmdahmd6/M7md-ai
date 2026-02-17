@@ -1,0 +1,75 @@
+/* استيراد خط تجول العربي من جوجل */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+
+/* تفعيل أساسيات Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* إعدادات عامة للموقع */
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Tajawal', sans-serif;
+  background-color: #020617; 
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  direction: rtl; /* التأكد من أن الاتجاه العام لليمين */
+  
+  /* إضافة توهج خلفي خفيف ليعطي عمقاً للتصميم */
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.07) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(99, 102, 241, 0.07) 0%, transparent 40%);
+}
+
+/* تخصيص شكل شريط التمرير */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+/* أنيميشن لظهور العناصر بنعومة */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* تحسين شكل التكست أريا */
+textarea {
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b #020617;
+  transition: all 0.3s ease;
+}
+
+/* كلاس مخصص لجعل الصور المرفوعة تبدو متناسقة */
+.img-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 8px;
+}
