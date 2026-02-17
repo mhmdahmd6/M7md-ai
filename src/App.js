@@ -20,9 +20,9 @@ const M7mdAIInterface = () => {
   const [showResult, setShowResult] = useState(false);
   const [resultContent, setResultContent] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [isError, setIsError] = useState(false); // حالة جديدة لتحديد إذا كان هناك خطأ
   const fileInputRef = useRef(null);
 
-  // تحويل الصور إلى صيغة متوافقة مع الـ API
   async function fileToGenerativePart(file) {
     const base64EncodedDataPromise = new Promise((resolve) => {
       const reader = new FileReader();
@@ -56,11 +56,11 @@ const M7mdAIInterface = () => {
     setIsLoading(true);
     setProgress(10);
     setShowResult(false);
+    setIsError(false); // ريست لحالة الخطأ عند كل محاولة جديدة
     
     try {
       let finalResponse = "";
 
-      // المسار الأول: تحليل الصور + توليد برومبت (Hybrid Mode)
       if (activeTool === 'image' && files.length > 0) {
         setStatusMessage("جاري تحليل الصور عبر محرك Flash...");
         setProgress(30);
@@ -75,18 +75,16 @@ const M7mdAIInterface = () => {
         setStatusMessage("جاري صياغة البرومبت النهائي عبر M7MD AI...");
         setProgress(70);
         
-        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const proPrompt = `Convert this analysis: "${visionAnalysis}" into a high-end cinematic prompt for Midjourney. Aspect ratio: ${selectedRatio}. Language: English.`;
         const finalResult = await proModel.generateContent(proPrompt);
         finalResponse = finalResult.response.text();
       } 
-      
-      // المسار الثاني: هندسة نصوص مباشرة (Pro Mode)
       else {
         setStatusMessage("جاري المعالجة عبر M7MD AI...");
         setProgress(50);
         
-        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+        const proModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const textPrompt = `Role: Prompt Engineer. Task: Create a detailed Midjourney prompt for: "${userInput}". Ratio: ${selectedRatio}.`;
         const result = await proModel.generateContent(textPrompt);
         finalResponse = result.response.text();
@@ -97,11 +95,18 @@ const M7mdAIInterface = () => {
       setShowResult(true);
     } catch (error) {
       console.error("Critical Error:", error);
-      if (error.message.includes("429")) {
-        alert("تجاوزت حد الطلبات المسموح به. انتظر دقيقة وأعد المحاولة.");
+      setIsError(true); // تفعيل حالة الخطأ
+      
+      // وضع نص الخطأ بدلاً من النتيجة
+      if (error.message.includes("leaked")) {
+        setResultContent("⚠️ عذراً، تم إبطال مفتاح الـ API لأنه مسرب. يرجى تحديث المفتاح في إعدادات Vercel.");
+      } else if (error.message.includes("429")) {
+        setResultContent("⚠️ تجاوزت حد الطلبات (Rate Limit). انتظر دقيقة وأعد المحاولة.");
       } else {
-        alert("فشل النظام في معالجة الطلب: " + error.message);
+        setResultContent("⚠️ فشل النظام: " + error.message);
       }
+      
+      setShowResult(true); // إظهار الصندوق لعرض الخطأ
     } finally {
       setIsLoading(false);
       setStatusMessage("");
@@ -118,7 +123,6 @@ const M7mdAIInterface = () => {
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans selection:bg-blue-500/30 pb-20" dir="rtl">
       
-      {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-blue-900/30 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-1.5 rounded-lg">
@@ -132,7 +136,7 @@ const M7mdAIInterface = () => {
             <ImageIcon size={16} /> تحليل الصور
           </button>
           <button onClick={() => setActiveTool('prompt')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTool === 'prompt' ? 'bg-indigo-600' : 'text-gray-400'}`}>
-            <Wand2 size={16} /> بروميت 
+            <Wand2 size={16} /> برومبت
           </button>
         </div>
       </nav>
@@ -140,7 +144,6 @@ const M7mdAIInterface = () => {
       <main className="max-w-6xl mx-auto p-4 md:p-10 text-right">
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Main Input/Output Container */}
           <div className="w-full lg:flex-[2] space-y-6">
             <div className="bg-[#0f172a]/80 p-5 rounded-[1.9rem] border border-white/5 shadow-2xl">
               <textarea 
@@ -167,21 +170,24 @@ const M7mdAIInterface = () => {
             )}
 
             {showResult && (
-              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] animate-in fade-in slide-in-from-bottom-4">
+              <div className={`p-6 rounded-[2rem] animate-in fade-in slide-in-from-bottom-4 border ${isError ? 'bg-red-500/5 border-red-500/20' : 'bg-blue-500/5 border-blue-500/10'}`}>
                 <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
-                  <span className="text-blue-400 font-bold text-[11px] uppercase">برومبت M7MD AI جاهز</span>
-                  <button onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ ✅');}} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-[11px] hover:bg-white/10 transition-all">
-                    <Copy size={14} /> نسخ
-                  </button>
+                  <span className={`font-bold text-[11px] uppercase ${isError ? 'text-red-400' : 'text-blue-400'}`}>
+                    {isError ? 'خطأ في النظام' : 'برومبت M7MD AI جاهز'}
+                  </span>
+                  {!isError && (
+                    <button onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ ✅');}} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-[11px] hover:bg-white/10 transition-all">
+                      <Copy size={14} /> نسخ
+                    </button>
+                  )}
                 </div>
-                <div className="p-5 bg-black/40 rounded-xl text-gray-200 text-sm leading-relaxed whitespace-pre-wrap text-left" dir="ltr">
+                <div className={`p-5 bg-black/40 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${isError ? 'text-red-400 font-medium' : 'text-gray-200 text-left'}`} dir={isError ? "rtl" : "ltr"}>
                   {resultContent}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Controls Sidebar */}
           <div className="w-full lg:flex-[1] space-y-4">
             <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
               <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">اختيار الأبعاد</label>
@@ -214,7 +220,7 @@ const M7mdAIInterface = () => {
               className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-3 transition-all ${isLoading ? 'opacity-40' : 'hover:scale-[1.02] active:scale-95 shadow-2xl'} bg-gradient-to-r from-blue-600 to-indigo-600`}
             >
               {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={18} fill="white" />}
-              <span className="text-sm font-black uppercase tracking-widest">{isLoading ? 'جاري المعالجة المزدوجة...' : 'توليد السحر'}</span>
+              <span className="text-sm font-black uppercase tracking-widest">{isLoading ? 'جاري المعالجة...' : 'توليد السحر'}</span>
             </button>
             
             <div className="text-center opacity-20">
