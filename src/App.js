@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 
 // --- إعداد الاتصال بـ Gemini API ---
-// ملاحظة أمنية: تأكد من أن المفتاح غير مكشوف في ملفات Git العامة
 const API_KEY = process.env.REACT_APP_GEMINI_KEY; 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -23,7 +22,7 @@ const M7mdAIInterface = () => {
   const [statusMessage, setStatusMessage] = useState("");
   const fileInputRef = useRef(null);
 
-  // وظيفة تحويل الملف لـ Base64 لضمان توافق الوسائط المتعددة
+  // وظيفة تحويل الملف لـ Base64
   async function fileToGenerativePart(file) {
     const base64EncodedDataPromise = new Promise((resolve) => {
       const reader = new FileReader();
@@ -48,35 +47,35 @@ const M7mdAIInterface = () => {
 
   const removeFile = (id) => setFiles(prev => prev.filter(item => item.id !== id));
 
-  // --- محرك التعامل مع Gemini API (النسخة المتوافقة مع الفئة المجانية) ---
+  // --- محرك التعامل مع Gemini API (النسخة المستقرة) ---
   const handleGenerate = async () => {
     if (!userInput && files.length === 0) {
-      alert("أدخل وصفاً أو ارفع صورة أولاً لتبدأ المعالجة");
+      alert("أدخل وصفاً أو ارفع صورة أولاً");
       return;
     }
 
     if (!API_KEY || API_KEY === "undefined") {
-      alert("خطأ: مفتاح الـ API غير معرف. تأكد من إعداد REACT_APP_GEMINI_KEY");
+      alert("خطأ: مفتاح الـ API غير معرف");
       return;
     }
 
     setIsLoading(true);
-    setProgress(15);
+    setProgress(10);
     setShowResult(false);
-    setStatusMessage("جاري تجهيز البيانات للخوادم...");
+    setStatusMessage("جاري الاتصال بـ M7MD AI...");
 
-    // دالة تنفيذ الاتصال مع دعم التبديل الآلي في حال الازدحام
     const executeAiCall = async (modelName) => {
+      // نستخدم تهيئة بسيطة للموديل لضمان التوافق
       const model = genAI.getGenerativeModel({ model: modelName });
       
       let promptText = "";
       if (activeTool === 'prompt') {
-        promptText = `Role: Professional AI Prompt Engineer. Task: Elaborate the following concept into a high-quality, descriptive English prompt for Midjourney/DALL-E: "${userInput}".`;
+        promptText = `As a professional Prompt Engineer, convert this idea into a detailed English prompt for AI image generators: ${userInput}`;
       } else {
-        promptText = `Analysis Request: Based on the provided images and the user description: "${userInput}", generate a comprehensive English prompt for an AI image generator to create a visually similar result with an aspect ratio of ${selectedRatio}.`;
+        promptText = `Analyze images and description: "${userInput}". Create a professional English prompt for a similar image with aspect ratio ${selectedRatio}.`;
       }
 
-      // إرسال البيانات بشكل متوافق: نص + مصفوفة الصور إن وجدت
+      // إرسال المصفوفة بشكل مباشر [Text, Image, Image...]
       if (files.length > 0) {
         const imageParts = await Promise.all(files.map(f => fileToGenerativePart(f.rawFile)));
         return await model.generateContent([promptText, ...imageParts]);
@@ -86,39 +85,32 @@ const M7mdAIInterface = () => {
     };
 
     try {
-      // المحاولة الأساسية باستخدام الموديل الاقتصادي والأسرع
-      setStatusMessage("جاري تحليل البيانات عبر Gemini Flash...");
+      // المحاولة الأولى بموديل Flash (الأسرع والأقل تكلفة)
       let result = await executeAiCall("gemini-1.5-flash"); 
+      setProgress(80);
       
-      setProgress(75);
       const response = await result.response;
-      const text = response.text();
-      
-      setResultContent(text);
+      setResultContent(response.text());
       setProgress(100);
       setIsLoading(false);
       setShowResult(true);
 
     } catch (error) {
-      console.error("M7MD AI Error Log:", error);
+      console.error("API Error:", error);
       
-      // نظام التعافي التلقائي (Auto-Recovery)
-      if (error.message.includes("429")) {
-        // خطأ تخطي حد الطلبات في الدقيقة (Rate Limit)
-        alert("تنبيه: لقد تجاوزت عدد الطلبات المسموح بها في الدقيقة للفئة المجانية. انتظر 60 ثانية.");
-      } else if (error.message.includes("503") || error.message.includes("400")) {
-        setStatusMessage("السيرفر مضغوط.. أحاول استخدام خادم احتياطي...");
+      // نظام Fallback في حالة ضغط السيرفرات أو أخطاء الموديل
+      if (error.message.includes("503") || error.message.includes("400")) {
+        setStatusMessage("جاري محاولة استخدام خادم احتياطي...");
         try {
-          // محاولة الـ Fallback باستخدام موديل Pro في حال تعذر Flash
           let fallbackResult = await executeAiCall("gemini-1.5-pro");
           const response = await fallbackResult.response;
           setResultContent(response.text());
           setShowResult(true);
         } catch (fallbackError) {
-          alert("نعتذر، جميع خوادم جوجل المجانية مضغوطة حالياً في منطقتك. يرجى المحاولة لاحقاً.");
+          alert("جميع السيرفرات مشغولة حالياً. حاول مجدداً بعد ثوانٍ.");
         }
       } else {
-        alert("حدث خطأ تقني: " + error.message);
+        alert("فشل الاتصال: " + error.message);
       }
       setIsLoading(false);
       setProgress(0);
@@ -135,7 +127,7 @@ const M7mdAIInterface = () => {
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans selection:bg-blue-500/30 pb-20" dir="rtl">
       
-      {/* Header */}
+      {/* الشريط العلوي */}
       <nav className="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-xl border-b border-blue-900/30 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-1.5 rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.5)]">
@@ -146,7 +138,7 @@ const M7mdAIInterface = () => {
 
         <div className="flex gap-2 bg-black/40 p-1 rounded-xl border border-white/5">
           <button onClick={() => {setActiveTool('image'); setShowResult(false);}} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTool === 'image' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' : 'text-gray-400 hover:text-blue-400'}`}>
-            <ImageIcon size={16} /> تحليل الصور
+            <ImageIcon size={16} /> مولد الصور
           </button>
           <button onClick={() => {setActiveTool('prompt'); setShowResult(false);}} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTool === 'prompt' ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]' : 'text-gray-400 hover:text-indigo-400'}`}>
             <Wand2 size={16} /> هندسة النصوص
@@ -157,14 +149,13 @@ const M7mdAIInterface = () => {
       <main className="max-w-6xl mx-auto p-4 md:p-10 text-right">
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
-          {/* Main Content Area */}
           <div className="w-full lg:flex-[2] space-y-6">
             <div className={`p-0.5 rounded-[2rem] bg-gradient-to-br ${activeTool === 'image' ? 'from-blue-500/20 to-transparent' : 'from-indigo-500/20 to-transparent'}`}>
               <div className="bg-[#0f172a]/80 backdrop-blur-md p-5 rounded-[1.9rem] border border-white/5 shadow-2xl">
                 <textarea 
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
-                  placeholder={activeTool === 'image' ? "صف ما تتخيله أو ارفع صوراً للتحليل..." : "اكتب فكرتك وسأجعلها برومبت احترافي لـ Midjourney..."}
+                  placeholder={activeTool === 'image' ? "صف ما تتخيله أو ارفع صوراً للتحليل..." : "اكتب فكرتك وسأجعلها برومبت احترافي..."}
                   className="w-full h-40 bg-transparent text-white text-base focus:outline-none transition-all resize-none placeholder:opacity-30 text-right leading-relaxed"
                 />
               </div>
@@ -189,13 +180,13 @@ const M7mdAIInterface = () => {
               <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] shadow-inner animate-in fade-in slide-in-from-bottom-4">
                 <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
                   <div className="flex items-center gap-2 text-blue-400 font-bold text-[11px] uppercase tracking-tighter">
-                    <CheckCircle2 size={16} /> النتيجة من M7MD AI
+                    <CheckCircle2 size={16} /> النتيجة النهائية
                   </div>
                   <button 
-                    onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ بنجاح! ✅');}} 
+                    onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ! ✅');}} 
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[11px] font-black transition-all"
                   >
-                    <Copy size={14} /> نسخ البرومبت
+                    <Copy size={14} /> نسخ النص
                   </button>
                 </div>
                 <div className="p-5 bg-black/40 rounded-xl border border-white/5 text-gray-200 text-sm leading-relaxed whitespace-pre-wrap font-medium">
@@ -205,11 +196,9 @@ const M7mdAIInterface = () => {
             )}
           </div>
 
-          {/* Sidebar Area */}
           <div className="w-full lg:flex-[1] space-y-4">
-            {/* Aspect Ratios */}
             <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
-              <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">نسبة الأبعاد (Aspect Ratio)</label>
+              <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">الأبعاد المطلوبة</label>
               <div className="grid grid-cols-2 gap-2">
                 {ratios.map((ratio) => (
                   <button key={ratio.id} onClick={() => setSelectedRatio(ratio.id)} className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border transition-all ${selectedRatio === ratio.id ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-white/5 bg-black/20 text-gray-400 hover:border-blue-900'}`}>
@@ -219,7 +208,6 @@ const M7mdAIInterface = () => {
               </div>
             </div>
 
-            {/* Image Upload */}
             <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
               <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">الصور المرجعية</label>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
@@ -238,7 +226,6 @@ const M7mdAIInterface = () => {
               </div>
             </div>
 
-            {/* Action Button */}
             <button 
               disabled={isLoading}
               onClick={handleGenerate}
@@ -248,10 +235,9 @@ const M7mdAIInterface = () => {
               <span className="text-sm font-black uppercase tracking-widest">{isLoading ? 'جاري التحليل...' : 'توليد النتيجة'}</span>
             </button>
 
-            {/* Footer Tag */}
             <div className="flex items-center justify-center gap-2 opacity-20 hover:opacity-100 transition-opacity">
                <AlertTriangle size={10} />
-               <span className="text-[8px] font-bold tracking-tight">M7MD AI Hybrid Engine v3.1 | Free Tier Active</span>
+               <span className="text-[8px] font-bold tracking-tight">M7MD AI Framework 2026 | Free Tier</span>
             </div>
           </div>
         </div>
