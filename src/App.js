@@ -74,8 +74,8 @@ const M7mdAIInterface = () => {
         setGeneratedImageUrl(imageUrl);
         setShowResult(true);
       } else {
-        // --- محرك هندسة البرومبت (Gemini 1.5 Flash) ---
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // --- محرك هندسة البرومبت (Gemini 2.5 Flash) ---
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         let promptParts = [
           `Role: Master Prompt Engineer. Create a Midjourney v6 prompt for: "${userInput}". Aspect Ratio: ${selectedRatio}. Output only the prompt.`
         ];
