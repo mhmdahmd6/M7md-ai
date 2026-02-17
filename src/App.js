@@ -55,7 +55,7 @@ const M7mdAIInterface = () => {
 
     // التحقق من وجود المفتاح قبل البدء
     if (!API_KEY || API_KEY === "undefined") {
-      alert("خطأ: مفتاح الـ API غير معرف. تأكد من إضافة REACT_APP_GEMINI_KEY في إعدادات Vercel أو ملف .env");
+      alert("خطأ: مفتاح الـ API غير معرف. تأكد من إضافة");
       return;
     }
 
@@ -64,7 +64,7 @@ const M7mdAIInterface = () => {
     setShowResult(false);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
       
       let result;
       if (activeTool === 'prompt') {
@@ -89,7 +89,7 @@ const M7mdAIInterface = () => {
     } catch (error) {
       // طباعة الخطأ في الكونسول وتنبيه المستخدم بالسبب الحقيقي
       console.error("تفاصيل الخطأ كاملة:", error);
-      alert("فشل الاتصال بـ Gemini: " + (error.message || "خطأ غير معروف"));
+      alert("فشل الاتصال بـ M7MD AI: " + (error.message || "خطأ غير معروف"));
       setIsLoading(false);
       setProgress(0);
     }
@@ -142,7 +142,7 @@ const M7mdAIInterface = () => {
             {isLoading && (
               <div className="px-4">
                 <div className="flex justify-between text-[10px] mb-2 text-blue-400 font-black tracking-widest">
-                  <span>جاري تحليل البيانات عبر Gemini API...</span>
+                  <span>جاري تحليل البيانات عبر M7MD AI ...</span>
                   <span>{progress}%</span>
                 </div>
                 <div className="w-full h-1.5 bg-blue-900/20 rounded-full overflow-hidden">
