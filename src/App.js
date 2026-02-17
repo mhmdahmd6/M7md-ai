@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   Sparkles, Monitor, Smartphone, Square, Layout, Plus, 
   Wand2, Image as ImageIcon, Cpu, Loader2, CheckCircle2, 
-  X, Copy 
+  X, Copy, AlertTriangle, RefreshCcw
 } from 'lucide-react';
 
 // --- إعداد الاتصال بـ Gemini API ---
@@ -19,6 +19,8 @@ const M7mdAIInterface = () => {
   const [progress, setProgress] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [resultContent, setResultContent] = useState("");
+  const [lastSignature, setLastSignature] = useState(null); // ميزة 2026: توقيع التفكير
+  const [statusMessage, setStatusMessage] = useState("");
   const fileInputRef = useRef(null);
 
   // وظيفة تحويل الملف لـ Base64
@@ -46,7 +48,7 @@ const M7mdAIInterface = () => {
 
   const removeFile = (id) => setFiles(prev => prev.filter(item => item.id !== id));
 
-  // --- محرك التعامل مع Gemini API ---
+  // --- محرك التعامل مع Gemini API (نسخة 2026 المطورة) ---
   const handleGenerate = async () => {
     if (!userInput && files.length === 0) {
       alert("أدخل وصفاً أو ارفع صورة أولاً");
@@ -54,45 +56,84 @@ const M7mdAIInterface = () => {
     }
 
     if (!API_KEY || API_KEY === "undefined") {
-      alert("خطأ: مفتاح الـ API غير معرف في إعدادات Vercel (REACT_APP_GEMINI_KEY)");
+      alert("خطأ: مفتاح الـ API غير معرف في إعدادات Vercel");
       return;
     }
 
     setIsLoading(true);
-    setProgress(20);
+    setProgress(10);
     setShowResult(false);
+    setStatusMessage("جاري الاتصال بسيرفرات Gemini 3...");
 
-    try {
-      // استخدام النسخة المستقرة من الموديل
-     const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-      
+    const executeAiCall = async (modelName) => {
+      // إعداد الموديل مع تفعيل ميزات التفكير العالي
+      const model = genAI.getGenerativeModel({ 
+        model: modelName,
+        generationConfig: { 
+          temperature: 0.7,
+          topP: 0.95,
+          // ميزة 2026 للنماذج الاحترافية
+          // thinking_level: "high" 
+        }
+      });
+
       let result;
       if (activeTool === 'prompt') {
-        const prompt = `بصفتك خبير Prompt Engineering، حول هذه الفكرة لبرومبت إنجليزي دقيق لمولدات الصور مثل Midjourney: ${userInput}`;
-        result = await model.generateContent(prompt);
+        const prompt = `Act as a professional Prompt Engineer. Task: Convert this idea into a highly detailed English prompt for AI image generators (Midjourney/DALL-E 3). Idea: ${userInput}`;
+        // إرسال التوقيع السابق لضمان استمرارية المنطق
+        result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          thoughtSignature: lastSignature 
+        });
       } else {
         setProgress(40);
+        setStatusMessage("جاري تحليل الصور المرفقة...");
         const imageParts = await Promise.all(
           files.map(f => fileToGenerativePart(f.rawFile))
         );
-        const prompt = `حلل الصور المرفقة والوصف: "${userInput}". اقترح برومبت إنجليزي احترافي لإنشاء صورة مشابهة بنسبة أبعاد ${selectedRatio}.`;
-        result = await model.generateContent([prompt, ...imageParts]);
+        const prompt = `Analyze these images and description: "${userInput}". Create a professional English prompt for generating a similar image with aspect ratio ${selectedRatio}.`;
+        result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }, ...imageParts] }],
+          thoughtSignature: lastSignature
+        });
+      }
+      return result;
+    };
+
+    try {
+      // المحاولة الأولى بموديل Flash السريع
+      let result = await executeAiCall("gemini-3-flash-preview");
+      setProgress(80);
+      
+      const response = await result.response;
+      
+      // حفظ التوقيع للرد القادم (ميزة Gemini 3)
+      if (response.candidates?.[0]?.thoughtSignature) {
+        setLastSignature(response.candidates[0].thoughtSignature);
       }
 
-      setProgress(80);
-      const response = await result.response;
-      const text = response.text();
-      
-      setResultContent(text);
+      setResultContent(response.text());
       setProgress(100);
       setIsLoading(false);
       setShowResult(true);
 
     } catch (error) {
       console.error("Debug Error:", error);
-      let msg = error.message;
-      if (msg.includes("404")) msg = "خطأ 404: تأكد من تحديث مكتبة جوجل أو تغيير اسم الموديل.";
-      alert("فشل الاتصال بـ M7MD AI: " + msg);
+      
+      // التعامل مع ضغط السيرفرات 503 (Fallback System)
+      if (error.message.includes("503") || error.message.includes("demand")) {
+        setStatusMessage("السيرفر مضغوط.. جاري التبديل للموديل الاحتياطي (Pro)...");
+        try {
+          let fallbackResult = await executeAiCall("gemini-3-pro-preview");
+          const response = await fallbackResult.response;
+          setResultContent(response.text());
+          setShowResult(true);
+        } catch (fallbackError) {
+          alert("نعتذر، جميع سيرفرات جوجل في منطقتك مضغوطة حالياً. حاول ثانية بعد دقيقة.");
+        }
+      } else {
+        alert("فشل الاتصال: " + error.message);
+      }
       setIsLoading(false);
       setProgress(0);
     }
@@ -143,9 +184,12 @@ const M7mdAIInterface = () => {
             </div>
 
             {isLoading && (
-              <div className="px-4">
-                <div className="flex justify-between text-[10px] mb-2 text-blue-400 font-black tracking-widest">
-                  <span>جاري المعالجة عبر Gemini API...</span>
+              <div className="px-4 space-y-3">
+                <div className="flex justify-between items-center text-[10px] text-blue-400 font-black tracking-widest">
+                  <div className="flex items-center gap-2">
+                    <RefreshCcw size={12} className="animate-spin" />
+                    <span>{statusMessage}</span>
+                  </div>
                   <span>{progress}%</span>
                 </div>
                 <div className="w-full h-1.5 bg-blue-900/20 rounded-full overflow-hidden">
@@ -155,10 +199,10 @@ const M7mdAIInterface = () => {
             )}
 
             {showResult && (
-              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] shadow-inner">
+              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] shadow-inner animate-in fade-in slide-in-from-bottom-4">
                 <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
                   <div className="flex items-center gap-2 text-blue-400 font-bold text-[11px] uppercase tracking-tighter">
-                    <CheckCircle2 size={16} /> النتيجة النهائية
+                    <CheckCircle2 size={16} /> النتيجة النهائية (Gemini 3)
                   </div>
                   <button 
                     onClick={() => {navigator.clipboard.writeText(resultContent); alert('تم النسخ! ✅');}} 
@@ -175,6 +219,7 @@ const M7mdAIInterface = () => {
           </div>
 
           <div className="w-full lg:flex-[1] space-y-4">
+            {/* أبعاد الصورة */}
             <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
               <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">الأبعاد المطلوبة</label>
               <div className="grid grid-cols-2 gap-2">
@@ -186,6 +231,7 @@ const M7mdAIInterface = () => {
               </div>
             </div>
 
+            {/* رفع الصور */}
             <div className="bg-[#0f172a]/40 p-5 rounded-[1.5rem] border border-white/5">
               <label className="text-[10px] font-bold text-gray-500 mb-4 block text-center uppercase tracking-widest">الصور المرجعية</label>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
@@ -204,6 +250,7 @@ const M7mdAIInterface = () => {
               </div>
             </div>
 
+            {/* زر التوليد الرئيسي */}
             <button 
               disabled={isLoading}
               onClick={handleGenerate}
@@ -212,6 +259,12 @@ const M7mdAIInterface = () => {
               {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={18} fill="white" />}
               <span className="text-sm font-black uppercase tracking-widest">{isLoading ? 'جاري التحليل...' : 'توليد النتيجة'}</span>
             </button>
+
+            {/* ملاحظة تقنية صغيرة */}
+            <div className="flex items-center justify-center gap-2 opacity-20 hover:opacity-100 transition-opacity">
+               <AlertTriangle size={10} />
+               <span className="text-[8px] font-bold">Powered by Gemini 3 Flash Preview (2026 Edition)</span>
+            </div>
           </div>
         </div>
       </main>
