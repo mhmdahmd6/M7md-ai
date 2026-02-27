@@ -59,7 +59,7 @@ const M7mdAI_G3_Final = () => {
       if (selectedRatio === '9:16') { width = 720; height = 1280; }
       if (selectedRatio === '4:5')  { width = 1080; height = 1350; }
 
-      const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" }); // أو gemini-2.0-flash المتوفر حالياً
+      const model = genAI.getGenerativeModel({ model: "Nano Banana (Gemini 2.5 Flash Preview Image)" }); // أو gemini-2.0-flash المتوفر حالياً
 
       const bananaInstructions = `
         Role: Expert AI Image Architect.
